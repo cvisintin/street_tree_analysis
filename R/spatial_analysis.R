@@ -78,7 +78,8 @@ marks(trees_ppp) <- st_drop_geometry(trees)[, moy]
 for(i in m_id) {
   ppp <- as.ppp(trees[moy[i] == 1, "geometry"])
   linear_network <- lpp(ppp, L)
-  
+  KN <- linearK(linear_network, correction="none")
+  ELKS <- envelope(linear_network, linearK, correction="none", nsim=50)
 }
 
 # summary(linear_network)
@@ -134,9 +135,11 @@ trees_ppp <- as.ppp(trees_long[ , c("X", "Y")], W = boundary)
 
 linear_network_st <- stlpp(trees_ppp, L, T = trees_long$t)
 
-STLK(linear_network_st)
+mod <- STLK(linear_network_st)
 
+save(mod, file = "output/STLK")
 
+plot(mod)
 
 
 
