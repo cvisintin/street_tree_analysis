@@ -3,6 +3,7 @@ library(stlnpp)
 library(sf)
 library(RColorBrewer)
 library(reshape2)
+library(foreach)
 
 # Define some general parameters
 moy <- c("january", "february", "march", "april", "may", "june", "july",
@@ -22,9 +23,9 @@ roads <- st_union(roads)
 
 # Optional step: project geometry to a coordinate system that uses meters if in
 # decimal-based system
-trees <- st_transform(trees, crs = 8807) # e.g. WGS 84 / Pseudo-Mercator
-boundary <- st_transform(boundary, crs = 8807) # e.g. WGS 84 / Pseudo-Mercator
-roads <- st_transform(roads, crs = 8807) # e.g. WGS 84 / Pseudo-Mercator
+trees <- st_transform(trees, crs = 28355) # e.g. WGS 84 / Pseudo-Mercator
+boundary <- st_transform(boundary, crs = 28355) # e.g. WGS 84 / Pseudo-Mercator
+roads <- st_transform(roads, crs = 28355) # e.g. WGS 84 / Pseudo-Mercator
 
 # Change case to all lower in spatial data attribute names
 colnames(trees) <- tolower(colnames(trees))
@@ -46,7 +47,9 @@ n_data <- nrow(trees)
 
 #### Descriptive/Visual Analysis ####
 # Examine the distribution flowering trees by month
+png("figs/month_flowering.png", width = 900, height = 1100, res = 100)
 plot(trees[, moy], max.plot = 12, pal = "black", pch = 20, cex = 0.5)
+dev.off()
 
 # Calculate proportion of year (total months / 12) that each tree is in flower -
 # note that the geometry needs to be dropped before passing to the rowSums function
@@ -58,7 +61,9 @@ h <- hist(trees$prop_year, main = "", xlab = "Annual Proportion Flowering", prob
 lines(density(trees$prop_year, main = "", xlab = "Annual Proportion Flowering"))
 
 # Examine the spatial arrangement of annual proportion flowering
-plot(trees["prop_year"], pal = gr_palette[1:length(unique(trees$prop_year)) + 1], pch = 20, cex = 0.5, main = "")
+png("figs/prop_year_flowering.png", width = 1100, height = 900, res = 100)
+plot(trees["prop_year"], pal = gr_palette[1:length(unique(trees$prop_year)) + 1], pch = 20, cex = 0.7, main = "")
+dev.off()
 
 # Record how many trees are non-flowering
 n_non_flower <- sum(trees$prop_year == 0)
@@ -72,15 +77,42 @@ L <- as.linnet(roads_psp)
 trees_ppp <- as.ppp(trees$geometry)
 marks(trees_ppp) <- st_drop_geometry(trees)[, moy]
 
+# Create an overall linear point pattern
+linear_network <- lpp(trees_ppp, L)
+
+png("figs/overall_lpp.png", width = 1100, height = 900, res = 100)
+plot(linear_network, pch = 20, cex = 0.7, main = "")
+dev.off()
+
 # Create point patterns on a linear network for each month
-
-
-for(i in m_id) {
-  ppp <- as.ppp(trees[moy[i] == 1, "geometry"])
+lpps <- foreach(i = m_id) %do% {
+  ppp <- as.ppp(trees[which(trees[[moy[i]]] == 1), "geometry"])
   linear_network <- lpp(ppp, L)
-  KN <- linearK(linear_network, correction="none")
-  ELKS <- envelope(linear_network, linearK, correction="none", nsim=50)
+  envelope(linear_network, linearK, correction = "none", nsim = 50)
 }
+names(lpps) <- moy
+
+png("figs/linear_K.png", width = 900, height = 1100, res = 100)
+par(mfrow = c(4, 3))
+for(i in 1:length(lpps)) {
+  if(i %in% c(1, 4, 7)) {
+    par(mar = c(1.5, 3, 3, 1.5))
+    plot(lpps[[i]], main = moy[i], legend = FALSE, xlab = "" , ylab = "K")
+  }
+  if(i %in% c(11, 12)){
+    par(mar = c(3, 1.5, 3, 1.5))
+    plot(lpps[[i]], main = moy[i], legend = FALSE, xlab = "T" , ylab = "")
+  }
+  if(i %in% c(10)){
+    par(mar = c(3, 3, 3, 1.5))
+    plot(lpps[[i]], main = moy[i], legend = FALSE, xlab = "T" , ylab = "K")
+  }
+  if(i %in% c(2, 3, 5, 6, 8, 9)){
+    par(mar = c(1.5, 1.5, 3, 1.5))
+    plot(lpps[[i]], main = moy[i], legend = FALSE, xlab = "" , ylab = "")
+  }
+}
+dev.off()
 
 # summary(linear_network)
 # plot(linear_network, legend = FALSE, main = "", pch = 20, maxsize = 1.0, col = "lightgray")
