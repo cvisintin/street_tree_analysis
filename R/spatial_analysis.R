@@ -4,6 +4,7 @@ library(sf)
 library(RColorBrewer)
 library(reshape2)
 library(foreach)
+library(doMC)
 
 # Define some general parameters
 moy <- c("january", "february", "march", "april", "may", "june", "july",
@@ -77,18 +78,37 @@ L <- as.linnet(roads_psp)
 trees_ppp <- as.ppp(trees$geometry)
 marks(trees_ppp) <- st_drop_geometry(trees)[, moy]
 
-# Create an overall linear point pattern
+# Create a hypothetical point pattern assuming complete spatial randomness (CSR)
+linear_network_CSR <- rpoislpp(intensity(lpp(as.ppp(trees$geometry), L)), L)
+
+png("figs/lpp_CSR.png", width = 1100, height = 900, res = 100)
+plot(linear_network_CSR, pch = 20, cex = 0.7, main = "")
+dev.off()
+
+# Evaluate the distribution using a modified K-function
+expected_K <- envelope(linear_network_CSR, linearK, nsim = 20) # takes a while
+
+png("figs/expected_K.png", width = 900, height = 900, res = 100)
+plot(expected_K, main = "Expected K Trend", legend = FALSE)
+dev.off()
+
+# Create a linear point pattern from existing data
 linear_network <- lpp(trees_ppp, L)
 
-png("figs/overall_lpp.png", width = 1100, height = 900, res = 100)
+png("figs/lpp_existing.png", width = 1100, height = 900, res = 100)
 plot(linear_network, pch = 20, cex = 0.7, main = "")
 dev.off()
 
-# Create point patterns on a linear network for each month
-lpps <- foreach(i = m_id) %do% {
+# Create point patterns on a linear network for each month (in parallel by default,
+# please note that this may use up to 16GB of memory - use sequential processing
+# if memory is a limiting factor)
+registerDoMC(cores = 6)
+lpps <- foreach(i = m_id) %dopar% {
+#uncomment below and ignore previous two lines for sequential execution
+#lpps <- foreach(i = m_id) %do% {
   ppp <- as.ppp(trees[which(trees[[moy[i]]] == 1), "geometry"])
   linear_network <- lpp(ppp, L)
-  envelope(linear_network, linearK, correction = "none", nsim = 50)
+  envelope(linear_network, linearK, nsim = 50)
 }
 names(lpps) <- moy
 
