@@ -63,7 +63,7 @@ lines(density(trees$prop_year, main = "", xlab = "Annual Proportion Flowering"))
 
 # Examine the spatial arrangement of annual proportion flowering
 png("figs/prop_year_flowering.png", width = 1100, height = 900, res = 100)
-plot(trees["prop_year"], pal = gr_palette[1:length(unique(trees$prop_year)) + 1], pch = 20, cex = 0.7, main = "")
+plot(trees["prop_year"], pal = c("grey95", gr_palette[1:length(unique(trees$prop_year))]), pch = 20, cex = 0.7, main = "")
 dev.off()
 
 # Record how many trees are non-flowering
@@ -96,7 +96,7 @@ dev.off()
 linear_network <- lpp(trees_ppp, L)
 
 png("figs/lpp_existing.png", width = 1100, height = 900, res = 100)
-plot(linear_network, pch = 20, cex = 0.7, main = "")
+plot(linear_network, legend = FALSE, pch = 20, cex = 0.7, main = "")
 dev.off()
 
 # Create point patterns on a linear network for each month (in parallel by default,
@@ -134,96 +134,85 @@ for(i in 1:length(lpps)) {
 }
 dev.off()
 
-# summary(linear_network)
-# plot(linear_network, legend = FALSE, main = "", pch = 20, maxsize = 1.0, col = "lightgray")
-
-
-# # Move all tree locations to be coincident with the road centerlines - this is a
-# # requirement of the linear pattern analysis (note, this may take a while depending
-# # on the complexity of the road network and number of trees)
-# n <- nrow(trees)
-# trees_centerlines <- do.call(c,
-#                              lapply(seq(n), function(i) {
-#                                nrst = st_nearest_points(st_geometry(trees)[i], roads)
-#                                nrst_len = st_length(nrst)
-#                                nrst_mn = which.min(nrst_len)
-#                                if (as.vector(nrst_len[nrst_mn]) > 25) return(st_geometry(trees)[i])
-#                                return(st_cast(nrst[nrst_mn], "POINT")[2])
-#                              }))
-
-
-#### Spatiotemporal Statistical Analysis ####
-# Reshape data to provide a datum for each month that each tree is flowering (e.g.
-# some number between X trees and X trees multiplied by 12 - based on varying 
-# number of flowering months per species)
-trees_long <- melt(st_drop_geometry(trees), id = c("X", "Y", "id", "species"))
-trees_long <- na.omit(trees_long[trees_long$value == 1, ])
-
-# Record how many trees are flowering (note, unique values must be counted due to
-# the long format of the data)
-n_flower <- length(unique(trees_long$id))
-
-# Verify that the data was reshaped correctly
-(n_non_flower + n_flower == n_data)
-
-# Examine example species to verify flowering in expected months - e.g. "Angophora
-# costa" should only flower OCT-DEC
-trees_long[trees_long$species == "Angophora costa", ]
-
-# Update the "value" column to code the respective month
-for (m in m_id) {
-  idx <- which(trees_long$variable == moy[m])
-  trees_long$value[idx] <- m
-}
-
-colnames(trees_long)[ncol(trees_long)] <- "t"
-
-# Create planar segment pattern from road geometry & convert to linear network
-roads_psp <- as.psp(roads)
-L <- as.linnet(roads_psp)
-
-# Create planar point pattern from tree locations
-trees_ppp <- as.ppp(trees_long[ , c("X", "Y")], W = boundary)
-
-linear_network_st <- stlpp(trees_ppp, L, T = trees_long$t)
-
-mod <- STLK(linear_network_st)
-
-save(mod, file = "output/STLK")
-
-plot(mod)
+#### Proposed layout ####
 
 
 
 
-# Extract coordinates of vertices from the boundary polygon
-boundary_coords <- st_coordinates(boundary)[ , 1:2]
 
-# Create a point process for analysis and re-scale spatial units to kilometers -
-# use all month of year data as marks
-data_ppp <- as.ppp(st_drop_geometry(data[ , c("X", "Y")]), W = boundary)
-marks(data_ppp) <- st_drop_geometry(data[ , moy])
-data_ppp <- rescale(data_ppp, 1000, "km")
-
-plot(data_ppp, s.region = boundary, pch = 20, use.marks = TRUE, cols = "black", maxsize = 0.001, legend = FALSE, main = "")
-
-# Calculate density
-k <- density(data_ppp)
-plot(k, main=NULL, las=1)
-
-# Test for clustering or dispersion based on point pair correlation
-g <- pcf(data_ppp)
-plot(g, main = NULL, las = 1)
+#### Ideal layout ####
 
 
 
-# Create a point process for analysis and re-scale spatial units to kilometers -
-# duplicate points based on flowering months of year 
-data_long_ppp <- as.ppp(data_long[ , c("X", "Y", "value")], W = boundary)
-data_long_ppp <- rescale(data_long_ppp, 1000, "km")
-
-plot(data_long_ppp, s.region = boundary, pch = 20, use.marks = TRUE, cols = "black", maxsize = 0.001, legend = FALSE, main = "")
-
-# Test for clustering or dispersion based on point pair correlation
-g <- pcf(data_long_ppp)
-plot(g, main = NULL, las = 1)
+# #### Spatiotemporal Statistical Analysis ####
+# # Reshape data to provide a datum for each month that each tree is flowering (e.g.
+# # some number between X trees and X trees multiplied by 12 - based on varying 
+# # number of flowering months per species)
+# trees_long <- melt(st_drop_geometry(trees), id = c("X", "Y", "id", "species"))
+# trees_long <- na.omit(trees_long[trees_long$value == 1, ])
+# 
+# # Record how many trees are flowering (note, unique values must be counted due to
+# # the long format of the data)
+# n_flower <- length(unique(trees_long$id))
+# 
+# # Verify that the data was reshaped correctly
+# (n_non_flower + n_flower == n_data)
+# 
+# # Examine example species to verify flowering in expected months - e.g. "Angophora
+# # costa" should only flower OCT-DEC
+# trees_long[trees_long$species == "Angophora costa", ]
+# 
+# # Update the "value" column to code the respective month
+# for (m in m_id) {
+#   idx <- which(trees_long$variable == moy[m])
+#   trees_long$value[idx] <- m
+# }
+# 
+# colnames(trees_long)[ncol(trees_long)] <- "t"
+# 
+# # Create planar segment pattern from road geometry & convert to linear network
+# roads_psp <- as.psp(roads)
+# L <- as.linnet(roads_psp)
+# 
+# # Create planar point pattern from tree locations
+# trees_ppp <- as.ppp(trees_long[ , c("X", "Y")], W = boundary)
+# 
+# linear_network_st <- stlpp(trees_ppp, L, T = trees_long$t)
+# 
+# mod <- STLK(linear_network_st)
+# 
+# save(mod, file = "output/STLK")
+# 
+# plot(mod)
+# 
+# # Extract coordinates of vertices from the boundary polygon
+# boundary_coords <- st_coordinates(boundary)[ , 1:2]
+# 
+# # Create a point process for analysis and re-scale spatial units to kilometers -
+# # use all month of year data as marks
+# data_ppp <- as.ppp(st_drop_geometry(data[ , c("X", "Y")]), W = boundary)
+# marks(data_ppp) <- st_drop_geometry(data[ , moy])
+# data_ppp <- rescale(data_ppp, 1000, "km")
+# 
+# plot(data_ppp, s.region = boundary, pch = 20, use.marks = TRUE, cols = "black", maxsize = 0.001, legend = FALSE, main = "")
+# 
+# # Calculate density
+# k <- density(data_ppp)
+# plot(k, main=NULL, las=1)
+# 
+# # Test for clustering or dispersion based on point pair correlation
+# g <- pcf(data_ppp)
+# plot(g, main = NULL, las = 1)
+# 
+# 
+# 
+# # Create a point process for analysis and re-scale spatial units to kilometers -
+# # duplicate points based on flowering months of year 
+# data_long_ppp <- as.ppp(data_long[ , c("X", "Y", "value")], W = boundary)
+# data_long_ppp <- rescale(data_long_ppp, 1000, "km")
+# 
+# plot(data_long_ppp, s.region = boundary, pch = 20, use.marks = TRUE, cols = "black", maxsize = 0.001, legend = FALSE, main = "")
+# 
+# # Test for clustering or dispersion based on point pair correlation
+# g <- pcf(data_long_ppp)
+# plot(g, main = NULL, las = 1)
