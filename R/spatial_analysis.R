@@ -22,11 +22,11 @@ roads <- read_sf(dsn = "data/gis/", layer = "Averley_Road_Centerlines")
 # Union all of the road segments
 roads <- st_union(roads)
 
-# Optional step: project geometry to a coordinate system that uses meters if in
+# Project geometry to a coordinate system that uses meters if in
 # decimal-based system
-trees <- st_transform(trees, crs = 28355) # e.g. WGS 84 / Pseudo-Mercator
-boundary <- st_transform(boundary, crs = 28355) # e.g. WGS 84 / Pseudo-Mercator
-roads <- st_transform(roads, crs = 28355) # e.g. WGS 84 / Pseudo-Mercator
+trees <- st_transform(trees, crs = 28355) # e.g. GDA94 / MGA zone 55
+boundary <- st_transform(boundary, crs = 28355) # e.g. GDA94 / MGA zone 55
+roads <- st_transform(roads, crs = 28355) # e.g. GDA94 / MGA zone 55
 
 # Change case to all lower in spatial data attribute names
 colnames(trees) <- tolower(colnames(trees))
@@ -43,12 +43,10 @@ trees$id <- seq_len(nrow(trees))
 # Record number of datapoints
 n_data <- nrow(trees)
 
-# Assign colour palettes to points
-
 
 #### Descriptive/Visual Analysis ####
 # Examine the distribution flowering trees by month
-png("figs/month_flowering.png", width = 900, height = 1100, res = 100)
+png("figs/month_flowering_baseline.png", width = 900, height = 1100, res = 100)
 plot(trees[, moy], max.plot = 12, pal = "black", pch = 20, cex = 0.5)
 dev.off()
 
@@ -58,11 +56,13 @@ idx_cols <- which(colnames(trees) %in% moy)
 trees$prop_year <- rowSums(st_drop_geometry(trees[, moy]), na.rm = TRUE) / 12
 
 # What is the overall distribution of annual proportion flowering
+png("figs/dist_flowering_baseline.png", width = 900, height = 900, res = 100)
 h <- hist(trees$prop_year, main = "", xlab = "Annual Proportion Flowering", probability = TRUE)
 lines(density(trees$prop_year, main = "", xlab = "Annual Proportion Flowering"))
+dev.off()
 
 # Examine the spatial arrangement of annual proportion flowering
-png("figs/prop_year_flowering.png", width = 1100, height = 900, res = 100)
+png("figs/prop_year_flowering_baseline.png", width = 1100, height = 900, res = 100)
 plot(trees["prop_year"], pal = c("grey95", gr_palette[1:length(unique(trees$prop_year))]), pch = 20, cex = 0.7, main = "")
 dev.off()
 
@@ -88,14 +88,14 @@ dev.off()
 # Evaluate the distribution using a modified K-function
 expected_K <- envelope(linear_network_CSR, linearK, nsim = 20) # takes a while
 
-png("figs/expected_K.png", width = 900, height = 900, res = 100)
+png("figs/K_CSR.png", width = 900, height = 900, res = 100)
 plot(expected_K, main = "Expected K Trend", legend = FALSE)
 dev.off()
 
 # Create a linear point pattern from existing data
 linear_network <- lpp(trees_ppp, L)
 
-png("figs/lpp_existing.png", width = 1100, height = 900, res = 100)
+png("figs/lpp_baseline.png", width = 1100, height = 900, res = 100)
 plot(linear_network, legend = FALSE, pch = 20, cex = 0.7, main = "")
 dev.off()
 
@@ -112,7 +112,7 @@ lpps <- foreach(i = m_id) %dopar% {
 }
 names(lpps) <- moy
 
-png("figs/linear_K.png", width = 900, height = 1100, res = 100)
+png("figs/K_baseline.png", width = 900, height = 1100, res = 100)
 par(mfrow = c(4, 3))
 for(i in 1:length(lpps)) {
   if(i %in% c(1, 4, 7)) {
@@ -134,13 +134,12 @@ for(i in 1:length(lpps)) {
 }
 dev.off()
 
-#### Proposed layout ####
 
+#### Proposed layouts ####
+# Previous steps were for the baseline case, now test effects of changing layouts
+# based on three scenarios
 
-
-
-
-#### Ideal layout ####
+# Read in script for function that analyses a proposed GIS layout
 
 
 
@@ -216,3 +215,12 @@ dev.off()
 # # Test for clustering or dispersion based on point pair correlation
 # g <- pcf(data_long_ppp)
 # plot(g, main = NULL, las = 1)
+
+
+##### Scenarios #####
+# Baseline
+# Realistic - Boulevard in non-permitted sections gets more flowering trees: Changing median trees on boulevard outside permit 1 and regular street trees on the boulevard east-west to east of creek - Yellow gum, On the creek - Black Iron Bark
+# Improved - Entire Boulevard gets more flowering trees: Realistic but also across permit 1 - median and roadside
+# Gold Standard - Mix of flowering trees throughout development: Replacing Acers (2), Japanese Zelkova, and Elms (2) with ??? - create map with non-flowering...
+
+### Euc Leuc - removing Jan/Feb/Mar
