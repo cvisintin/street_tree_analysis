@@ -16,8 +16,8 @@ col_palette <- brewer.pal(length(moy), "Paired")
 # Read in spatial data (note, geometry type is points for trees and polygon for
 # site boundary)
 trees <- read_sf(dsn = "data/gis/", layer = "Averley_Tree_Layout")
-boundary <- read_sf(dsn = "data/gis/", layer = "Averley_Boundary")
 roads <- read_sf(dsn = "data/gis/", layer = "Averley_Road_Centerlines")
+# boundary <- read_sf(dsn = "data/gis/", layer = "Averley_Boundary")
 
 # Union all of the road segments
 roads <- st_union(roads)
@@ -25,8 +25,8 @@ roads <- st_union(roads)
 # Project geometry to a coordinate system that uses meters if in
 # decimal-based system
 trees <- st_transform(trees, crs = 28355) # e.g. GDA94 / MGA zone 55
-boundary <- st_transform(boundary, crs = 28355) # e.g. GDA94 / MGA zone 55
 roads <- st_transform(roads, crs = 28355) # e.g. GDA94 / MGA zone 55
+# boundary <- st_transform(boundary, crs = 28355) # e.g. GDA94 / MGA zone 55
 
 # Change case to all lower in spatial data attribute names
 colnames(trees) <- tolower(colnames(trees))
@@ -63,7 +63,7 @@ dev.off()
 
 # Examine the spatial arrangement of annual proportion flowering
 png("figs/prop_year_flowering_baseline.png", width = 1100, height = 900, res = 100)
-plot(trees["prop_year"], pal = c("grey95", gr_palette[1:length(unique(trees$prop_year))]), pch = 20, cex = 0.7, main = "")
+plot(trees["prop_year"], pal = c("white", gr_palette[2:length(unique(trees$prop_year))]), pch = 20, cex = 0.7, main = "")
 dev.off()
 
 # Record how many trees are non-flowering
@@ -140,6 +140,26 @@ dev.off()
 # based on three scenarios
 
 # Read in script for function that analyses a proposed GIS layout
+source("R/spatial_analysis_functions.R")
+
+# Read in and re-project GIS data for realistic scenario and run spatial analysis
+realistic <- read_sf(dsn = "data/gis/", layer = "Averley_Tree_Layout-Realistic")
+realistic <- st_transform(realistic, crs = 28355) # e.g. GDA94 / MGA zone 55
+run_spatial_analysis(point_pattern = realistic, roads = roads, scenario = "realistic")
+
+# Read in and re-project GIS data for improved scenario and run spatial analysis
+improved <- read_sf(dsn = "data/gis/", layer = "Averley_Tree_Layout-Improved")
+improved <- st_transform(improved, crs = 28355) # e.g. GDA94 / MGA zone 55
+run_spatial_analysis(point_pattern = improved, roads = roads, scenario = "improved")
+
+# Read in and re-project GIS data for gold-standard scenario and run spatial analysis
+gold_standard <- read_sf(dsn = "data/gis/", layer = "Averley_Tree_Layout-Gold_Standard")
+gold_standard <- st_transform(gold_standard, crs = 28355) # e.g. GDA94 / MGA zone 55
+run_spatial_analysis(point_pattern = gold_standard, roads = roads, scenario = "gold_standard")
+
+
+
+
 
 
 
@@ -222,5 +242,3 @@ dev.off()
 # Realistic - Boulevard in non-permitted sections gets more flowering trees: Changing median trees on boulevard outside permit 1 and regular street trees on the boulevard east-west to east of creek - Yellow gum, On the creek - Black Iron Bark
 # Improved - Entire Boulevard gets more flowering trees: Realistic but also across permit 1 - median and roadside
 # Gold Standard - Mix of flowering trees throughout development: Replacing Acers (2), Japanese Zelkova, and Elms (2) with ??? - create map with non-flowering...
-
-### Euc Leuc - removing Jan/Feb/Mar
