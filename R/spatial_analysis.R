@@ -9,8 +9,7 @@ library(doMC)
 # Define some general parameters
 moy <- c("january", "february", "march", "april", "may", "june", "july",
          "august", "september", "october", "november", "december")
-m_id <- 1:12
-gr_palette <- grey.colors(length(moy), start = 0.8, end = 0.1)
+gr_palette <- grey.colors(length(moy), start = 0.9, end = 0.1)
 col_palette <- brewer.pal(length(moy), "Paired")
 
 # Read in spatial data (note, geometry type is points for trees and polygon for
@@ -43,6 +42,11 @@ trees$id <- seq_len(nrow(trees))
 # Record number of datapoints
 n_data <- nrow(trees)
 
+# Determine which months have flowering trees
+m_id <- vector()
+for(i in 1:12) {
+  if(!all(is.na(st_drop_geometry(trees[, moy[i]])))) m_id <- c(m_id, i)
+}
 
 #### Descriptive/Visual Analysis ####
 # Examine the distribution flowering trees by month
@@ -50,24 +54,29 @@ png("figs/month_flowering_baseline.png", width = 900, height = 1100, res = 100)
 plot(trees[, moy], max.plot = 12, pal = "black", pch = 20, cex = 0.5)
 dev.off()
 
-# Calculate proportion of year (total months / 12) that each tree is in flower -
-# note that the geometry needs to be dropped before passing to the rowSums function
+# Calculate total month that each tree is in flower - note that the geometry needs
+# to be dropped before passing to the rowSums function
 idx_cols <- which(colnames(trees) %in% moy)
-trees$prop_year <- rowSums(st_drop_geometry(trees[, moy]), na.rm = TRUE) / 12
+trees$total_months <- rowSums(st_drop_geometry(trees[, moy]), na.rm = TRUE)
 
 # What is the overall distribution of annual proportion flowering
 png("figs/dist_flowering_baseline.png", width = 900, height = 900, res = 100)
-h <- hist(trees$prop_year, main = "", xlab = "Annual Proportion Flowering", probability = TRUE)
-lines(density(trees$prop_year, main = "", xlab = "Annual Proportion Flowering"))
+h <- hist(trees$total_months, main = "", xlab = "Total Months Flowering", probability = TRUE)
+lines(density(trees$total_months))
 dev.off()
 
 # Examine the spatial arrangement of annual proportion flowering
-png("figs/prop_year_flowering_baseline.png", width = 1100, height = 900, res = 100)
-plot(trees["prop_year"], pal = c("white", gr_palette[2:length(unique(trees$prop_year))]), pch = 20, cex = 0.7, main = "")
+png("figs/total_months_flowering_baseline.png", width = 1100, height = 900, res = 100)
+plot(trees["total_months"],
+     pal = c("white", gr_palette),
+     pch = 20,
+     cex = 0.7,
+     main = "",
+     breaks = 0:13)
 dev.off()
 
 # Record how many trees are non-flowering
-n_non_flower <- sum(trees$prop_year == 0)
+n_non_flower <- sum(trees$total_months == 0)
 
 #### Spatial Statistical Analysis ####
 # Create planar segment pattern from road geometry & convert to linear network
@@ -108,31 +117,39 @@ lpps <- foreach(i = m_id) %dopar% {
 #lpps <- foreach(i = m_id) %do% {
   ppp <- as.ppp(trees[which(trees[[moy[i]]] == 1), "geometry"])
   linear_network <- lpp(ppp, L)
-  envelope(linear_network, linearK, nsim = 50)
+  envelope(linear_network, linearK, nsim = 20)
 }
-names(lpps) <- moy
+names(lpps) <- moy[m_id]
 
 png("figs/K_baseline.png", width = 900, height = 1100, res = 100)
 par(mfrow = c(4, 3))
 for(i in 1:length(lpps)) {
-  if(i %in% c(1, 4, 7)) {
-    par(mar = c(1.5, 3, 3, 1.5))
-    plot(lpps[[i]], main = moy[i], legend = FALSE, xlab = "" , ylab = "K")
-  }
-  if(i %in% c(11, 12)){
     par(mar = c(3, 1.5, 3, 1.5))
-    plot(lpps[[i]], main = moy[i], legend = FALSE, xlab = "T" , ylab = "")
-  }
-  if(i %in% c(10)){
-    par(mar = c(3, 3, 3, 1.5))
-    plot(lpps[[i]], main = moy[i], legend = FALSE, xlab = "T" , ylab = "K")
-  }
-  if(i %in% c(2, 3, 5, 6, 8, 9)){
-    par(mar = c(1.5, 1.5, 3, 1.5))
-    plot(lpps[[i]], main = moy[i], legend = FALSE, xlab = "" , ylab = "")
-  }
-}
+    plot(lpps[[i]], main = moy[m_id][i], legend = FALSE, xlab = "T" , ylab = "")
+ }
 dev.off()
+
+# png("figs/K_baseline.png", width = 900, height = 1100, res = 100)
+# par(mfrow = c(4, 3))
+# for(i in 1:length(lpps)) {
+#   if(i %in% c(1, 4, 7)) {
+#     par(mar = c(1.5, 3, 3, 1.5))
+#     plot(lpps[[i]], main = moy[i], legend = FALSE, xlab = "" , ylab = "K")
+#   }
+#   if(i %in% c(11, 12)){
+#     par(mar = c(3, 1.5, 3, 1.5))
+#     plot(lpps[[i]], main = moy[i], legend = FALSE, xlab = "T" , ylab = "")
+#   }
+#   if(i %in% c(10)){
+#     par(mar = c(3, 3, 3, 1.5))
+#     plot(lpps[[i]], main = moy[i], legend = FALSE, xlab = "T" , ylab = "K")
+#   }
+#   if(i %in% c(2, 3, 5, 6, 8, 9)){
+#     par(mar = c(1.5, 1.5, 3, 1.5))
+#     plot(lpps[[i]], main = moy[i], legend = FALSE, xlab = "" , ylab = "")
+#   }
+# }
+# dev.off()
 
 
 #### Proposed layouts ####

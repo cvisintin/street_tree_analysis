@@ -2,8 +2,7 @@ run_spatial_analysis <- function(point_pattern, roads, scenario, return_lpps = F
   
   moy <- c("january", "february", "march", "april", "may", "june", "july",
            "august", "september", "october", "november", "december")
-  m_id <- 1:12
-  gr_palette <- grey.colors(length(moy), start = 0.8, end = 0.1)
+  gr_palette <- grey.colors(length(moy), start = 0.9, end = 0.1)
   col_palette <- brewer.pal(length(moy), "Paired")
   
   colnames(point_pattern) <- tolower(colnames(point_pattern))
@@ -12,20 +11,30 @@ run_spatial_analysis <- function(point_pattern, roads, scenario, return_lpps = F
   point_pattern$id <- seq_len(nrow(point_pattern))
   n_data <- nrow(point_pattern)
   
+  m_id <- vector()
+  for(i in 1:12) {
+    if(!all(is.na(st_drop_geometry(point_pattern[, moy[i]])))) m_id <- c(m_id, i)
+  }
+  
   png(paste0("figs/month_flowering_", scenario,".png"), width = 900, height = 1100, res = 100)
   plot(point_pattern[, moy], max.plot = 12, pal = "black", pch = 20, cex = 0.5)
   dev.off()
   
   idx_cols <- which(colnames(point_pattern) %in% moy)
-  point_pattern$prop_year <- rowSums(st_drop_geometry(point_pattern[, moy]), na.rm = TRUE) / 12
+  point_pattern$total_months <- rowSums(st_drop_geometry(point_pattern[, moy]), na.rm = TRUE)
   
   png(paste0("figs/dist_flowering_", scenario,".png"), width = 900, height = 900, res = 100)
-  h <- hist(point_pattern$prop_year, main = "", xlab = "Annual Proportion Flowering", probability = TRUE)
-  lines(density(point_pattern$prop_year, main = "", xlab = "Annual Proportion Flowering"))
+  h <- hist(point_pattern$total_months, main = "", xlab = "Total Months Flowering", probability = TRUE)
+  lines(density(point_pattern$total_months))
   dev.off()
   
-  png(paste0("figs/prop_year_flowering_", scenario,".png"), width = 1100, height = 900, res = 100)
-  plot(point_pattern["prop_year"], pal = c("white", gr_palette[2:length(unique(point_pattern$prop_year))]), pch = 20, cex = 0.7, main = "")
+  png(paste0("figs/total_months_flowering_", scenario,".png"), width = 1100, height = 900, res = 100)
+  plot(point_pattern["total_months"],
+       pal = c("white", gr_palette),
+       pch = 20,
+       cex = 0.7,
+       main = "",
+       breaks = 0:13)
   dev.off()
   
   roads_psp <- as.psp(roads)
@@ -44,29 +53,15 @@ run_spatial_analysis <- function(point_pattern, roads, scenario, return_lpps = F
     #lpps <- foreach(i = m_id) %do% {
     ppp <- as.ppp(point_pattern[which(point_pattern[[moy[i]]] == 1), "geometry"])
     linear_network <- lpp(ppp, L)
-    envelope(linear_network, linearK, nsim = 50)
+    envelope(linear_network, linearK, nsim = 20)
   }
-  names(lpps) <- moy
+  names(lpps) <- moy[m_id]
   
   png(paste0("figs/K_", scenario,".png"), width = 900, height = 1100, res = 100)
   par(mfrow = c(4, 3))
   for(i in 1:length(lpps)) {
-    if(i %in% c(1, 4, 7)) {
-      par(mar = c(1.5, 3, 3, 1.5))
-      plot(lpps[[i]], main = moy[i], legend = FALSE, xlab = "" , ylab = "K")
-    }
-    if(i %in% c(11, 12)){
-      par(mar = c(3, 1.5, 3, 1.5))
-      plot(lpps[[i]], main = moy[i], legend = FALSE, xlab = "T" , ylab = "")
-    }
-    if(i %in% c(10)){
-      par(mar = c(3, 3, 3, 1.5))
-      plot(lpps[[i]], main = moy[i], legend = FALSE, xlab = "T" , ylab = "K")
-    }
-    if(i %in% c(2, 3, 5, 6, 8, 9)){
-      par(mar = c(1.5, 1.5, 3, 1.5))
-      plot(lpps[[i]], main = moy[i], legend = FALSE, xlab = "" , ylab = "")
-    }
+    par(mar = c(3, 1.5, 3, 1.5))
+    plot(lpps[[i]], main = moy[m_id][i], legend = FALSE, xlab = "T" , ylab = "")
   }
   dev.off()
   
