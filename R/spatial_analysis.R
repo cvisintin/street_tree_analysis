@@ -14,7 +14,7 @@ col_palette <- brewer.pal(length(moy), "Paired")
 
 # Read in spatial data (note, geometry type is points for trees and polygon for
 # site boundary)
-trees <- read_sf(dsn = "data/gis/", layer = "Averley_Tree_Layout")
+trees <- read_sf(dsn = "data/gis/", layer = "Averley_Tree_Layout-Baseline")
 roads <- read_sf(dsn = "data/gis/", layer = "Averley_Road_Centerlines")
 # boundary <- read_sf(dsn = "data/gis/", layer = "Averley_Boundary")
 
@@ -48,6 +48,9 @@ for(i in 1:12) {
   if(!all(is.na(st_drop_geometry(trees[, moy[i]])))) m_id <- c(m_id, i)
 }
 
+# Determine months with no flowering trees
+missing_id <- setdiff(1:12, m_id)
+
 #### Descriptive/Visual Analysis ####
 # Examine the distribution flowering trees by month
 png("figs/month_flowering_baseline.png", width = 900, height = 1100, res = 100)
@@ -59,9 +62,17 @@ dev.off()
 idx_cols <- which(colnames(trees) %in% moy)
 trees$total_months <- rowSums(st_drop_geometry(trees[, moy]), na.rm = TRUE)
 
-# What is the overall distribution of annual proportion flowering
+# Calculate the overall distribution of annual proportion flowering
 png("figs/dist_flowering_baseline.png", width = 900, height = 900, res = 100)
-h <- hist(trees$total_months, main = "", xlab = "Total Months Flowering", probability = TRUE)
+par(mar = c(5, 5, 1.5, 1.5))
+h <- hist(trees$total_months,
+          main = "",
+          xlab = "Total Months Flowering",
+          probability = TRUE,
+          xaxt = 'n',
+          breaks = 12,
+          xlim = c(0, 13))
+axis(side = 1, at = seq(0.5, 12.5), labels = seq(0, 12))
 lines(density(trees$total_months))
 dev.off()
 
@@ -77,6 +88,16 @@ dev.off()
 
 # Record how many trees are non-flowering
 n_non_flower <- sum(trees$total_months == 0)
+
+# Calculate the overall Shannon Diversity Index
+sp_count <- aggregate(id ~ species, data = st_drop_geometry(trees), FUN = length)
+sp_props <- sp_count$id / sum(sp_count$id)
+sdi <- -sum(sp_props * log(sp_props))
+paste0("Shannon Diversity Index: ", sdi)
+
+# Calculate the overall Shannon Equitability Index
+sei <- sdi / log(length(unique(sp_count$species)))
+paste0("Shannon Diversity Index: ", sei)
 
 #### Spatial Statistical Analysis ####
 # Create planar segment pattern from road geometry & convert to linear network
@@ -112,21 +133,27 @@ dev.off()
 # please note that this may use up to 16GB of memory - use sequential processing
 # if memory is a limiting factor)
 registerDoMC(cores = 6)
-lpps <- foreach(i = m_id) %dopar% {
-#uncomment below and ignore previous two lines for sequential execution
-#lpps <- foreach(i = m_id) %do% {
-  ppp <- as.ppp(trees[which(trees[[moy[i]]] == 1), "geometry"])
-  linear_network <- lpp(ppp, L)
-  envelope(linear_network, linearK, nsim = 20)
+lpps <- foreach(i = 1:12) %dopar% {
+  #uncomment below and ignore previous two lines for sequential execution
+  #lpps <- foreach(i = m_id) %do% {
+  if (i %in% missing_id) { NULL
+  }else{
+    ppp <- as.ppp(trees[which(trees[[moy[i]]] == 1), "geometry"])
+    linear_network <- lpp(ppp, L)
+    envelope(linear_network, linearK, nsim = 20)
+  }
 }
-names(lpps) <- moy[m_id]
+names(lpps) <- moy
 
 png("figs/K_baseline.png", width = 900, height = 1100, res = 100)
 par(mfrow = c(4, 3))
-for(i in 1:length(lpps)) {
-    par(mar = c(3, 1.5, 3, 1.5))
-    plot(lpps[[i]], main = moy[m_id][i], legend = FALSE, xlab = "T" , ylab = "")
- }
+for(i in 1:12) {
+  par(mar = c(3, 1.5, 3, 1.5))
+  if (i %in% missing_id) {plot.new()
+  }else{
+    plot(lpps[[i]], main = moy[i], legend = FALSE, xlab = "T" , ylab = "")
+  }
+}
 dev.off()
 
 # png("figs/K_baseline.png", width = 900, height = 1100, res = 100)
@@ -160,23 +187,29 @@ dev.off()
 source("R/spatial_analysis_functions.R")
 
 # Read in and re-project GIS data for realistic scenario and run spatial analysis
-realistic <- read_sf(dsn = "data/gis/", layer = "Averley_Tree_Layout-Realistic")
-realistic <- st_transform(realistic, crs = 28355) # e.g. GDA94 / MGA zone 55
-run_spatial_analysis(point_pattern = realistic, roads = roads, scenario = "realistic")
+baseline <- read_sf(dsn = "data/gis/", layer = "Averley_Tree_Layout-Baseline")
+baseline <- st_transform(baseline, crs = 28355) # e.g. GDA94 / MGA zone 55
+baseline_k <- run_spatial_analysis(point_pattern = baseline, roads = roads, scenario = "baseline", return_lpps = TRUE)
+baseline_n_species <- length(unique(baseline$species))
+baseline_pct_nonflowering <- sum(apply(st_drop_geometry(baseline)[, 3:14], 1, function(x) all(is.na(x)))) / nrow(baseline)
 
 # Read in and re-project GIS data for improved scenario and run spatial analysis
 improved <- read_sf(dsn = "data/gis/", layer = "Averley_Tree_Layout-Improved")
 improved <- st_transform(improved, crs = 28355) # e.g. GDA94 / MGA zone 55
-run_spatial_analysis(point_pattern = improved, roads = roads, scenario = "improved")
+improved_k <- run_spatial_analysis(point_pattern = improved, roads = roads, scenario = "improved", return_lpps = TRUE)
+improved_n_species <- length(unique(improved$species))
+improved_pct_nonflowering <- sum(apply(st_drop_geometry(improved)[, 3:14], 1, function(x) all(is.na(x)))) / nrow(improved)
 
 # Read in and re-project GIS data for gold-standard scenario and run spatial analysis
 gold_standard <- read_sf(dsn = "data/gis/", layer = "Averley_Tree_Layout-Gold_Standard")
 gold_standard <- st_transform(gold_standard, crs = 28355) # e.g. GDA94 / MGA zone 55
-run_spatial_analysis(point_pattern = gold_standard, roads = roads, scenario = "gold_standard")
+gold_standard_k <- run_spatial_analysis(point_pattern = gold_standard, roads = roads, scenario = "gold_standard", return_lpps = TRUE)
+gold_standard_n_species <- length(unique(gold_standard$species))
+gold_standard_pct_nonflowering <- sum(apply(st_drop_geometry(gold_standard)[, 3:14], 1, function(x) all(is.na(x)))) / nrow(gold_standard)
 
-
-
-
+png(paste0("figs/K_all_scenarios.png"), width = 1800, height = 2200, res = 200)
+plot_k(list(baseline_k, improved_k, gold_standard_k))
+dev.off()
 
 
 
@@ -255,7 +288,6 @@ run_spatial_analysis(point_pattern = gold_standard, roads = roads, scenario = "g
 
 
 ##### Scenarios #####
-# Baseline
-# Realistic - Boulevard in non-permitted sections gets more flowering trees: Changing median trees on boulevard outside permit 1 and regular street trees on the boulevard east-west to east of creek - Yellow gum, On the creek - Black Iron Bark
+# Baseline - Boulevard in non-permitted sections gets more flowering trees: Changing median trees on boulevard outside permit 1 and regular street trees on the boulevard east-west to east of creek - Yellow gum, On the creek - Black Iron Bark
 # Improved - Entire Boulevard gets more flowering trees: Realistic but also across permit 1 - median and roadside
 # Gold Standard - Mix of flowering trees throughout development: Replacing Acers (2), Japanese Zelkova, and Elms (2) with ??? - create map with non-flowering...
