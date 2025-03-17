@@ -57,7 +57,7 @@ run_spatial_analysis <- function(point_pattern, roads, scenario, return_lpps = F
   sei <- sdi / log(length(unique(sp_count$species)))
   print(paste0("Shannon Equitability Index: ", sei))
   
-  roads_psp <- as.psp(roads)
+  roads_psp <- as.psp(st_cast(roads, "MULTILINESTRING"))
   L <- as.linnet(roads_psp)
   point_pattern_ppp <- as.ppp(point_pattern$geometry)
   marks(point_pattern_ppp) <- st_drop_geometry(point_pattern)[, moy]

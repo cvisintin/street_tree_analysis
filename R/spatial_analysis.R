@@ -101,7 +101,7 @@ paste0("Shannon Diversity Index: ", sei)
 
 #### Spatial Statistical Analysis ####
 # Create planar segment pattern from road geometry & convert to linear network
-roads_psp <- as.psp(roads)
+roads_psp <- as.psp(st_cast(roads, "MULTILINESTRING"))
 L <- as.linnet(roads_psp)
 
 # Create planar point pattern from tree locations
